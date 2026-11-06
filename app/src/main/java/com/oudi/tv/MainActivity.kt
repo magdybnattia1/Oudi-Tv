@@ -367,6 +367,7 @@ class MainActivity : Activity() {
         root.removeAllViews()
         header("مركز المباريات", true)
 
+        var refreshMatches: () -> Unit = {}
         val today = SimpleDateFormat("EEEE، d MMMM", Locale("ar")).format(Date())
         val hero = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -389,7 +390,7 @@ class MainActivity : Activity() {
         summary.addView(txt("جدول المواجهات", 18f, Color.WHITE, true),
             LinearLayout.LayoutParams(0, -2, 1f))
         summary.addView(txt("$count مباراة", 11f, gold, true))
-        summary.addView(btn("تحديث ↻") { loadMatches { renderMatches() } },
+        summary.addView(btn("تحديث ↻") { loadMatches { refreshMatches() } },
             LinearLayout.LayoutParams(-2, dp(40)).apply { marginStart = dp(8) })
         root.addView(summary, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(10) })
 
@@ -493,9 +494,9 @@ class MainActivity : Activity() {
                 })
             }
         }
-        fun renderMatches() = render()
+        refreshMatches = { render() }
         render()
-        loadMatches { render() }
+        loadMatches { refreshMatches() }
     }
     private fun matchChannels(m:MatchInfo){
         val sports=channels.filter{category(it,"رياضة")}
