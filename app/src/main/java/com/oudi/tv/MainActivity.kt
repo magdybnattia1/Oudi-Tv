@@ -50,7 +50,7 @@ class MainActivity : Activity() {
         root = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(18),dp(14),dp(18),dp(10)); setBackgroundColor(bg) }
         setContentView(root)
         showHome()
-        val default = "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8"
+        val default = "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8|https://iptv-org.github.io/iptv/categories/sports.m3u|https://iptv-org.github.io/iptv/languages/ara.m3u"
         playlistAddress = getPreferences(MODE_PRIVATE).getString("playlist",default) ?: default
         loadPlaylist(playlistAddress)
     }
@@ -362,13 +362,29 @@ class MainActivity : Activity() {
             }.show()
     }
     private fun loadPlaylist(address:String){
-        thread{try{
-            val con=URL(address).openConnection() as HttpURLConnection
-            con.connectTimeout=20000;con.readTimeout=30000;con.instanceFollowRedirects=true;con.setRequestProperty("User-Agent","Mozilla/5.0 OUDI-TV")
-            val body=con.inputStream.bufferedReader().use{it.readText()};con.disconnect()
-            val parsed=parseM3u(body)
-            runOnUiThread{channels=parsed;if(screen=="channels")showChannels();Toast.makeText(this,"تم تحميل "+parsed.size+" قناة",Toast.LENGTH_SHORT).show()}
-        }catch(_:Exception){runOnUiThread{Toast.makeText(this,"تعذر تحميل قائمة القنوات",Toast.LENGTH_LONG).show()}}}
+        thread{
+            val merged=LinkedHashMap<String,Channel>()
+            var successes=0
+            address.split("|").map{it.trim()}.filter{it.startsWith("http")}.forEach{source->
+                try{
+                    val con=URL(source).openConnection() as HttpURLConnection
+                    con.connectTimeout=20000;con.readTimeout=30000;con.instanceFollowRedirects=true
+                    con.setRequestProperty("User-Agent","Mozilla/5.0 OUDI-TV")
+                    val body=con.inputStream.bufferedReader().use{it.readText()}
+                    con.disconnect()
+                    parseM3u(body).forEach{ch->merged.putIfAbsent(ch.name.lowercase(Locale.ROOT)+"|"+ch.url,ch)}
+                    successes++
+                }catch(_:Exception){}
+            }
+            val parsed=merged.values.toList()
+            runOnUiThread{
+                if(successes>0){
+                    channels=parsed
+                    if(screen=="channels")showChannels()
+                    Toast.makeText(this,"تم تحميل "+parsed.size+" قناة من "+successes+" مصادر مجانية",Toast.LENGTH_LONG).show()
+                }else Toast.makeText(this,"تعذر تحميل قوائم القنوات",Toast.LENGTH_LONG).show()
+            }
+        }
     }
     private fun parseM3u(body:String):List<Channel>{
         val out=mutableListOf<Channel>();var name="قناة";var group="";var logo=""
