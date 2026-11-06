@@ -74,11 +74,19 @@ class MainActivity : Activity() {
     }
     private fun header(sub:String, back:Boolean=false) {
         val row=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
-        val brand=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; layoutParams=LinearLayout.LayoutParams(0,-2,1f) }
-        brand.addView(txt("OUDI  TV",25f,gold,true)); brand.addView(txt(sub,11f,muted))
+        val brand=LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL
+            layoutParams=LinearLayout.LayoutParams(0,-2,1f)
+        }
+        brand.addView(txt("OUDI  TV",27f,gold,true))
+        brand.addView(txt(sub,11f,muted))
         row.addView(brand)
-        row.addView(btn(if(back) "رجوع ‹" else "⚙") { if(back) showHome() else sourceDialog() },LinearLayout.LayoutParams(-2,42))
-        root.addView(row,LinearLayout.LayoutParams(-1,dp(66)).apply { bottomMargin=dp(22) })
+        row.addView(btn(if(back) "رجوع  ‹" else "الإعدادات  ⚙") {
+            if(back) showHome() else sourceDialog()
+        },LinearLayout.LayoutParams(-2,44))
+        root.addView(row,LinearLayout.LayoutParams(-1,dp(72)).apply { bottomMargin=dp(16) })
+        root.addView(View(this).apply { setBackgroundColor(Color.rgb(52,45,29)) },
+            LinearLayout.LayoutParams(-1,dp(1)).apply { bottomMargin=dp(16) })
     }
     private fun title(s:String,sub:String="") {
         root.addView(txt(s,21f,Color.WHITE,true),LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=5 })
