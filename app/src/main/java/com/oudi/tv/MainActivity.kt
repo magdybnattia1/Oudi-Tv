@@ -34,8 +34,10 @@ class MainActivity : Activity() {
         window.statusBarColor = bg
         window.navigationBarColor = bg
         buildScreen()
-        val defaultPlaylist = "https://raw.githubusercontent.com/SaidFathi/iptv-channels/main/channels.m3u"
-        val saved = getPreferences(MODE_PRIVATE).getString("playlist", defaultPlaylist) ?: defaultPlaylist
+        val defaultPlaylist = "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8"
+        val storedPlaylist = getPreferences(MODE_PRIVATE).getString("playlist", "") ?: ""
+        val saved = if (storedPlaylist.isBlank() || storedPlaylist.contains("biskyt.github.io") || storedPlaylist.contains("SaidFathi/iptv-channels")) defaultPlaylist else storedPlaylist
+        if (saved != storedPlaylist) getPreferences(MODE_PRIVATE).edit().putString("playlist", saved).apply()
         playlistUrl.setText(saved)
         if (saved.isNotBlank()) loadPlaylist(saved)
     }
