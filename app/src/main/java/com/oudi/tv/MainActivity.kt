@@ -103,7 +103,7 @@ class MainActivity : Activity() {
         screen="sections"
         root.removeAllViews()
         header("البث المباشر",true)
-        title("اختر القسم","تصفح القنوات حسب التصنيف")
+        title("اختر القسم",if(playlistLoading) "جاري تحميل القنوات..." else if(playlistError) "تعذر الاتصال بمصدر القنوات" else "تم تحميل " + channels.size + " قناة • اختر تصنيفك")
         val scroll=ScrollView(this).apply { clipToPadding=false; isFillViewport=false }
         val box=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(0,dp(6),0,dp(18)) }
         val entries=listOf(
@@ -386,11 +386,18 @@ class MainActivity : Activity() {
             }
             val parsed=merged.values.toList()
             runOnUiThread{
-                if(successes>0){
+                playlistLoading=false
+                playlistError=successes==0 || parsed.isEmpty()
+                if(successes>0 && parsed.isNotEmpty()){
                     channels=officialBeinChannels + parsed
-                    if(screen=="channels")showChannels()
-                    Toast.makeText(this,"تم تحميل "+parsed.size+" قناة من "+successes+" مصادر مجانية",Toast.LENGTH_LONG).show()
-                }else Toast.makeText(this,"تعذر تحميل قوائم القنوات",Toast.LENGTH_LONG).show()
+                    if(screen=="channels") showChannels()
+                    else if(screen=="sections") showSections()
+                    else if(screen=="home") showHome()
+                    Toast.makeText(this,"تم تحميل "+parsed.size+" قناة",Toast.LENGTH_LONG).show()
+                }else{
+                    if(screen=="home") showHome() else if(screen=="sections") showSections()
+                    Toast.makeText(this,"تعذر تحميل القائمة. تحقق من الاتصال أو غيّر المصدر.",Toast.LENGTH_LONG).show()
+                }
             }
         }
     }
