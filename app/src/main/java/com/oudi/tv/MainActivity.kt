@@ -6,277 +6,243 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
-import android.text.Editable
-import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.*
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.concurrent.thread
 
 data class Channel(val name: String, val url: String, val group: String = "", val logo: String = "")
+data class MatchInfo(val home: String, val away: String, val hs: String, val ascore: String, val state: String, val league: String, val time: String)
 
 class MainActivity : Activity() {
-    private val gold = Color.rgb(224, 184, 75)
-    private val bg = Color.rgb(9, 10, 13)
-    private val panel = Color.rgb(23, 25, 31)
-    private val muted = Color.rgb(155, 160, 170)
-    private lateinit var list: LinearLayout
-    private lateinit var search: EditText
-    private lateinit var playerView: PlayerView
-    private lateinit var status: TextView
-    private lateinit var tabs: LinearLayout
+    private val gold = Color.rgb(224,184,75)
+    private val bg = Color.rgb(8,9,12)
+    private val panel = Color.rgb(24,26,32)
+    private val muted = Color.rgb(160,164,173)
+    private lateinit var root: LinearLayout
     private var player: ExoPlayer? = null
-    private var channels: List<Channel> = emptyList()
-    private var activeTab = "الكل"
+    private var playerView: PlayerView? = null
+    private var channels = emptyList<Channel>()
+    private var matches = emptyList<MatchInfo>()
     private var playlistAddress = ""
-    private val sections = listOf("الكل", "رياضة", "أفلام", "مسلسلات", "أخبار", "أطفال", "منوعات")
+    private var section = ""
+    private var screen = "home"
+    private val sections = listOf("رياضة","أفلام","مسلسلات","أخبار","أطفال","منوعات")
+    private val leagues = listOf("eng.1","esp.1","ger.1","ita.1","fra.1","uefa.champions","usa.1")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = bg
         window.navigationBarColor = bg
         window.decorView.layoutDirection = View.LAYOUT_DIRECTION_RTL
-        buildScreen()
+        root = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(16,12,16,8); setBackgroundColor(bg) }
+        setContentView(root)
+        showHome()
         val default = "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8"
-        val saved = getPreferences(MODE_PRIVATE).getString("playlist", "") ?: ""
-        playlistAddress = if (saved.isBlank()) default else saved
+        playlistAddress = getPreferences(MODE_PRIVATE).getString("playlist",default) ?: default
         loadPlaylist(playlistAddress)
     }
 
-    private fun shape(color: Int, radius: Float = 16f) = GradientDrawable().apply {
-        setColor(color); cornerRadius = radius
+    private fun shape(c:Int,r:Float=17f) = GradientDrawable().apply { setColor(c); cornerRadius=r }
+    private fun txt(s:String,n:Float,c:Int,b:Boolean=false) = TextView(this).apply {
+        text=s; textSize=n; setTextColor(c); if(b) typeface=Typeface.DEFAULT_BOLD
     }
-
-    private fun label(value: String, size: Float, color: Int, bold: Boolean = false) =
-        TextView(this).apply {
-            text = value; textSize = size; setTextColor(color)
-            if (bold) typeface = Typeface.DEFAULT_BOLD
+    private fun btn(s:String,action:()->Unit) = TextView(this).apply {
+        text=s; textSize=14f; gravity=Gravity.CENTER; setTextColor(gold); background=shape(panel,14f)
+        setPadding(15,8,15,8); setOnClickListener { action() }
+    }
+    private fun header(sub:String, back:Boolean=false) {
+        val row=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
+        val brand=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; layoutParams=LinearLayout.LayoutParams(0,-2,1f) }
+        brand.addView(txt("OUDI  TV",25f,gold,true)); brand.addView(txt(sub,11f,muted))
+        row.addView(brand)
+        row.addView(btn(if(back) "رجوع ‹" else "⚙") { if(back) showHome() else sourceDialog() },LinearLayout.LayoutParams(-2,42))
+        root.addView(row,LinearLayout.LayoutParams(-1,58).apply { bottomMargin=16 })
+    }
+    private fun title(s:String,sub:String="") {
+        root.addView(txt(s,21f,Color.WHITE,true),LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=5 })
+        if(sub.isNotBlank()) root.addView(txt(sub,12f,muted),LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=14 })
+    }
+    private fun showHome() {
+        screen="home"; root.removeAllViews(); header("منصة المشاهدة والترفيه")
+        root.addView(View(this),LinearLayout.LayoutParams(1,0,1f))
+        root.addView(tile("▶","بث مباشر","قنوات رياضية وترفيهية وأخبار"){showSections()},LinearLayout.LayoutParams(-1,150).apply{bottomMargin=16})
+        root.addView(tile("⚽","مباريات اليوم","المواعيد والنتائج وحالة المباريات"){showMatches()},LinearLayout.LayoutParams(-1,150))
+        root.addView(txt("أسود × ذهبي  •  OUDI TV",12f,muted).apply{gravity=Gravity.CENTER},LinearLayout.LayoutParams(-1,55))
+        root.addView(View(this),LinearLayout.LayoutParams(1,0,1f))
+    }
+    private fun tile(icon:String,name:String,desc:String,action:()->Unit)=LinearLayout(this).apply{
+        orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER; background=shape(panel,22f); setPadding(16,12,16,12)
+        addView(txt(icon,32f,gold,true).apply{gravity=Gravity.CENTER})
+        addView(txt(name,22f,Color.WHITE,true).apply{gravity=Gravity.CENTER;setPadding(0,5,0,4)})
+        addView(txt(desc,12f,muted).apply{gravity=Gravity.CENTER})
+        setOnClickListener{action()}
+    }
+    private fun showSections() {
+        screen="sections"; root.removeAllViews(); header("البث المباشر",true); title("الأقسام","اختار القسم لعرض القنوات المتاحة")
+        val scroll=ScrollView(this); val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}
+        sections.forEach { s -> box.addView(txt(s,20f,Color.WHITE,true).apply{
+            gravity=Gravity.CENTER; background=shape(panel,17f); setOnClickListener{section=s;showChannels()}
+        },LinearLayout.LayoutParams(-1,66).apply{bottomMargin=10}) }
+        scroll.addView(box); root.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
+    }
+    private fun category(c:Channel,s:String):Boolean {
+        val v=(c.group+" "+c.name).lowercase(Locale.ROOT)
+        val keys=when(s){
+            "رياضة"->listOf("sport","bein","football","soccer","رياض","كرة")
+            "أفلام"->listOf("movie","film","cinema","فيلم")
+            "مسلسلات"->listOf("series","drama","مسلسل","دراما")
+            "أخبار"->listOf("news","أخبار","خبر")
+            "أطفال"->listOf("kids","children","cartoon","أطفال","كرتون")
+            else->listOf("entertain","music","lifestyle","منوع")
         }
-
-    private fun buildScreen() {
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(14, 10, 14, 6)
-            setBackgroundColor(bg)
+        return keys.any{v.contains(it)}
+    }
+    private fun showChannels() {
+        screen="channels"; root.removeAllViews(); header("البث المباشر  /  "+section,true); title(section,"القنوات الموجودة في قائمة البث")
+        val search=EditText(this).apply{hint="ابحث عن قناة...";textSize=14f;setHintTextColor(muted);setTextColor(Color.WHITE);setSingleLine(true);setPadding(14,0,14,0);background=shape(panel,13f)}
+        root.addView(search,LinearLayout.LayoutParams(-1,46).apply{bottomMargin=12})
+        val scroll=ScrollView(this); val list=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL};scroll.addView(list)
+        root.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
+        fun render(q:String=""){
+            list.removeAllViews()
+            val found=channels.filter{category(it,section)&&(it.name.contains(q,true)||it.group.contains(q,true))}
+            found.take(300).forEach{ch->
+                val row=LinearLayout(this).apply{gravity=Gravity.CENTER_VERTICAL;background=shape(panel,14f);setPadding(12,10,12,10);setOnClickListener{play(ch)}}
+                row.addView(txt("▶",20f,gold,true),LinearLayout.LayoutParams(42,42))
+                val info=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;layoutParams=LinearLayout.LayoutParams(0,-2,1f)}
+                info.addView(txt(ch.name,14f,Color.WHITE,true));info.addView(txt(ch.group.ifBlank{"بث مباشر"},11f,muted))
+                row.addView(info);row.addView(txt("مشاهدة",11f,gold))
+                list.addView(row,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=8})
+            }
+            if(found.isEmpty()) list.addView(txt(if(channels.isEmpty())"جاري تحميل القنوات..." else "لا توجد قنوات مطابقة في القائمة الحالية",13f,muted).apply{gravity=Gravity.CENTER;setPadding(8,30,8,30)})
         }
-        val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        val brand = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
-        }
-        brand.addView(label("OUDI  TV", 25f, gold, true))
-        brand.addView(label("قنواتك المفضلة في مكان واحد", 11f, muted))
-        header.addView(brand)
-        val settings = TextView(this).apply {
-            text = "⚙"; textSize = 22f; gravity = Gravity.CENTER
-            setTextColor(gold); background = shape(panel, 14f)
-            setOnClickListener { showSourceDialog() }
-        }
-        header.addView(settings, LinearLayout.LayoutParams(46, 44))
-        root.addView(header, LinearLayout.LayoutParams(-1, 54).apply { bottomMargin = 12 })
-
-        val titleRow = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        titleRow.addView(label("شاهد الآن", 19f, Color.WHITE, true), LinearLayout.LayoutParams(0, -2, 1f))
-        status = label("جاري تجهيز القنوات...", 11f, muted)
-        titleRow.addView(status)
-        root.addView(titleRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 9 })
-
-        playerView = PlayerView(this).apply {
-            useController = true; setBackgroundColor(Color.BLACK); visibility = View.GONE
-        }
-        root.addView(playerView, LinearLayout.LayoutParams(-1, 190).apply { bottomMargin = 10 })
-
-        search = EditText(this).apply {
-            hint = "ابحث عن قناة..."
-            textSize = 14f; setHintTextColor(muted); setTextColor(Color.WHITE)
-            setSingleLine(true); setPadding(14, 0, 14, 0)
-            background = shape(panel, 13f)
-        }
-        root.addView(search, LinearLayout.LayoutParams(-1, 46).apply { bottomMargin = 12 })
-
-        val scroller = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
-        tabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        scroller.addView(tabs)
-        root.addView(scroller, LinearLayout.LayoutParams(-1, 43).apply { bottomMargin = 12 })
-
-        val heading = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        heading.addView(label("القنوات", 17f, Color.WHITE, true), LinearLayout.LayoutParams(0, -2, 1f))
-        heading.addView(label("● بث مباشر", 10f, gold))
-        root.addView(heading, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 9 })
-
-        val scroll = ScrollView(this).apply { isFillViewport = true }
-        list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        scroll.addView(list)
-        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        setContentView(root)
-
-        search.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = renderChannels()
-            override fun afterTextChanged(s: Editable?) {}
+        search.addTextChangedListener(object:android.text.TextWatcher{
+            override fun beforeTextChanged(s:CharSequence?,st:Int,c:Int,a:Int){}
+            override fun onTextChanged(s:CharSequence?,st:Int,b:Int,c:Int){render(s?.toString()?: "")}
+            override fun afterTextChanged(s:android.text.Editable?){}
         })
-        renderTabs()
-        renderChannels()
+        render()
+        playerView?.let{pv->(pv.parent as? ViewGroup)?.removeView(pv);root.addView(pv,LinearLayout.LayoutParams(-1,205).apply{topMargin=8})}
     }
-
-    private fun renderTabs() {
-        tabs.removeAllViews()
-        sections.forEach { section ->
-            val selected = section == activeTab
-            val chip = TextView(this).apply {
-                text = section; textSize = 13f; gravity = Gravity.CENTER
-                setTextColor(if (selected) Color.BLACK else Color.WHITE)
-                setPadding(18, 0, 18, 0)
-                background = shape(if (selected) gold else panel, 22f)
-                setOnClickListener { activeTab = section; renderTabs(); renderChannels() }
+    private fun showMatches() {
+        screen="matches";root.removeAllViews();header("مباريات اليوم",true)
+        val bar=LinearLayout(this).apply{gravity=Gravity.CENTER_VERTICAL}
+        bar.addView(txt("مباريات كرة القدم",20f,Color.WHITE,true),LinearLayout.LayoutParams(0,-2,1f))
+        bar.addView(btn("تحديث ↻"){loadMatches()})
+        root.addView(bar,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=7})
+        root.addView(txt("المصدر: ESPN. قد لا تشمل البيانات كل البطولات المحلية.",11f,muted),LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=12})
+        val scroll=ScrollView(this);val list=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL};scroll.addView(list)
+        root.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
+        fun render(){
+            list.removeAllViews()
+            if(matches.isEmpty())list.addView(txt("جاري تحميل مباريات اليوم أو لا توجد مباريات متاحة حاليًا.",14f,muted).apply{gravity=Gravity.CENTER;setPadding(8,40,8,40)})
+            matches.forEach{m->
+                val card=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;background=shape(panel,16f);setPadding(14,12,14,12);setOnClickListener{matchChannels(m)}}
+                card.addView(txt(m.league,10f,gold))
+                val teams=LinearLayout(this).apply{gravity=Gravity.CENTER_VERTICAL}
+                teams.addView(txt(m.home,13f,Color.WHITE,true),LinearLayout.LayoutParams(0,-2,1f))
+                teams.addView(txt(m.hs+" - "+m.ascore,18f,gold,true))
+                teams.addView(txt(m.away,13f,Color.WHITE,true).apply{gravity=Gravity.END},LinearLayout.LayoutParams(0,-2,1f))
+                card.addView(teams,LinearLayout.LayoutParams(-1,-2).apply{topMargin=12;bottomMargin=9})
+                card.addView(txt(m.state+"  •  "+m.time,11f,muted))
+                card.addView(txt("اضغط لعرض القنوات الرياضية المتاحة  ›",11f,gold).apply{gravity=Gravity.CENTER;setPadding(0,10,0,0)})
+                list.addView(card,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=10})
             }
-            tabs.addView(chip, LinearLayout.LayoutParams(-2, 37).apply { marginEnd = 7 })
+        }
+        render();loadMatches{render()}
+    }
+    private fun matchChannels(m:MatchInfo){
+        val sports=channels.filter{category(it,"رياضة")}
+        if(sports.isEmpty()){
+            AlertDialog.Builder(this).setTitle("القناة الناقلة").setMessage("لا توجد قناة رياضية في قائمة البث الحالية، ولا تتوفر مطابقة موثوقة لقناة ناقلة لهذه المباراة.").setPositiveButton("حسنًا",null).show();return
+        }
+        AlertDialog.Builder(this).setTitle(m.home+" × "+m.away)
+            .setMessage("لا تتوفر مطابقة موثوقة للقناة الناقلة تلقائيًا. اختر قناة رياضية يدويًا؛ قد لا تكون ناقلة للمباراة.")
+            .setItems(sports.map{it.name}.toTypedArray()){_,i->play(sports[i])}.setNegativeButton("إلغاء",null).show()
+    }
+    private fun loadMatches(done:(()->Unit)?=null){
+        thread{
+            val found=LinkedHashMap<String,MatchInfo>()
+            val day=SimpleDateFormat("yyyyMMdd",Locale.US).format(Date())
+            for(league in leagues)try{
+                val con=URL("https://site.api.espn.com/apis/site/v2/sports/soccer/"+league+"/scoreboard?dates="+day).openConnection() as HttpURLConnection
+                con.connectTimeout=10000;con.readTimeout=12000;con.setRequestProperty("User-Agent","Mozilla/5.0 OUDI-TV")
+                val json=JSONObject(con.inputStream.bufferedReader().use{it.readText()});con.disconnect()
+                val events=json.optJSONArray("events")?:continue
+                for(i in 0 until events.length()){
+                    val event=events.optJSONObject(i)?:continue
+                    val comp=event.optJSONArray("competitions")?.optJSONObject(0)?:continue
+                    val teams=comp.optJSONArray("competitors")?:continue
+                    var home="";var away="";var hs="-";var ascore="-"
+                    for(j in 0 until teams.length()){
+                        val t=teams.optJSONObject(j)?:continue;val n=t.optJSONObject("team")?.optString("displayName","فريق")?:"فريق"
+                        if(t.optString("homeAway")=="home"){home=n;hs=t.optString("score","-")}else{away=n;ascore=t.optString("score","-")}
+                    }
+                    val typ=comp.optJSONObject("status")?.optJSONObject("type")
+                    val state=typ?.optString("shortDetail","")?.ifBlank{typ.optString("description","موعد المباراة")}?:"موعد المباراة"
+                    val raw=event.optString("date","")
+                    val time=try{SimpleDateFormat("HH:mm",Locale.getDefault()).format(SimpleDateFormat("yyyy-MM-dd'T'HH:mm'Z'",Locale.US).parse(raw)!!)}catch(_:Exception){""}
+                    val leagueName=json.optJSONArray("leagues")?.optJSONObject(0)?.optString("name",league)?:league
+                    found[event.optString("id")]=MatchInfo(home,away,hs,ascore,state,leagueName,time)
+                }
+            }catch(_:Exception){}
+            runOnUiThread{matches=found.values.toList();done?.invoke()}
         }
     }
-
-    private fun matchesSection(c: Channel): Boolean {
-        val value = (c.group + " " + c.name).lowercase()
-        return when (activeTab) {
-            "رياضة" -> listOf("sport", "sports", "bein", "football", "soccer", "رياض", "كرة").any { value.contains(it) }
-            "أفلام" -> listOf("movie", "film", "cinema", "فيلم", "أفلام").any { value.contains(it) }
-            "مسلسلات" -> listOf("series", "drama", "مسلسل", "دراما").any { value.contains(it) }
-            "أخبار" -> listOf("news", "أخبار", "خبر").any { value.contains(it) }
-            "أطفال" -> listOf("kids", "children", "cartoon", "child", "أطفال", "كرتون").any { value.contains(it) }
-            "منوعات" -> listOf("entertain", "music", "lifestyle", "منوع").any { value.contains(it) }
-            else -> true
-        }
-    }
-
-    private fun renderChannels() {
-        if (!::list.isInitialized) return
-        list.removeAllViews()
-        val query = if (::search.isInitialized) search.text.toString().trim() else ""
-        val visible = channels.filter { matchesSection(it) &&
-            (it.name.contains(query, true) || it.group.contains(query, true)) }
-        visible.take(400).forEach { channel ->
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-                setPadding(12, 10, 12, 10); background = shape(panel, 14f)
-                setOnClickListener { play(channel) }
-            }
-            val badge = TextView(this).apply {
-                text = "▶"; textSize = 17f; gravity = Gravity.CENTER
-                setTextColor(gold); background = shape(Color.rgb(48, 41, 25), 12f)
-            }
-            row.addView(badge, LinearLayout.LayoutParams(45, 45).apply { marginEnd = 12 })
-            val info = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
-            }
-            info.addView(label(channel.name, 14f, Color.WHITE, true).apply {
-                maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
-            })
-            info.addView(label(channel.group.ifBlank { "بث مباشر" }, 11f, muted))
-            row.addView(info)
-            row.addView(label("مشاهدة  ›", 11f, gold))
-            list.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 7 })
-        }
-        if (visible.isEmpty()) {
-            val message = if (channels.isEmpty()) "جاري تحميل القنوات..." else
-                if (activeTab == "الكل") "لا توجد نتائج مطابقة" else "لا توجد قنوات في قسم " + activeTab + " ضمن القائمة الحالية"
-            list.addView(label(message, 13f, muted).apply {
-                gravity = Gravity.CENTER; setPadding(10, 35, 10, 35)
-            })
-        }
-    }
-
-    private fun showSourceDialog() {
-        val input = EditText(this).apply {
-            setText(playlistAddress); setTextColor(Color.BLACK); hint = "https://..."
-        }
-        AlertDialog.Builder(this).setTitle("مصدر القنوات")
-            .setMessage("يمكنك تغيير قائمة القنوات بصيغة M3U.")
-            .setView(input).setNegativeButton("إلغاء", null)
-            .setPositiveButton("تحميل") { _, _ ->
-                val value = input.text.toString().trim()
-                if (value.startsWith("http")) {
-                    playlistAddress = value
-                    getPreferences(MODE_PRIVATE).edit().putString("playlist", value).apply()
-                    loadPlaylist(value)
-                } else Toast.makeText(this, "الرابط غير صحيح", Toast.LENGTH_SHORT).show()
+    private fun sourceDialog(){
+        val input=EditText(this).apply{setText(playlistAddress);setTextColor(Color.BLACK);hint="https://..."}
+        AlertDialog.Builder(this).setTitle("مصدر القنوات").setMessage("أدخل رابط قائمة قنوات بصيغة M3U.").setView(input)
+            .setNegativeButton("إلغاء",null).setPositiveButton("تحميل"){_,_->
+                val v=input.text.toString().trim()
+                if(v.startsWith("http")){playlistAddress=v;getPreferences(MODE_PRIVATE).edit().putString("playlist",v).apply();loadPlaylist(v)}
+                else Toast.makeText(this,"الرابط غير صحيح",Toast.LENGTH_SHORT).show()
             }.show()
     }
-
-    private fun loadPlaylist(address: String) {
-        status.text = "تحميل القنوات..."
-        thread {
-            try {
-                val conn = URL(address).openConnection() as HttpURLConnection
-                conn.connectTimeout = 20000; conn.readTimeout = 30000
-                conn.instanceFollowRedirects = true
-                conn.setRequestProperty("User-Agent", "Mozilla/5.0 OUDI-TV")
-                val body = conn.inputStream.bufferedReader().use { it.readText() }
-                conn.disconnect()
-                val parsed = parseM3u(body)
-                runOnUiThread {
-                    channels = parsed
-                    renderChannels()
-                    status.text = if (parsed.isEmpty()) "القائمة فارغة" else parsed.size.toString() + " قناة"
-                }
-            } catch (_: Exception) {
-                runOnUiThread {
-                    status.text = "فشل تحميل القائمة"
-                    list.removeAllViews()
-                    list.addView(label("تعذر الاتصال بمصدر القنوات. تحقق من الإنترنت أو غيّر المصدر من زر الإعدادات.", 13f, muted).apply {
-                        gravity = Gravity.CENTER; setPadding(18, 35, 18, 35)
-                    })
-                }
-            }
-        }
+    private fun loadPlaylist(address:String){
+        thread{try{
+            val con=URL(address).openConnection() as HttpURLConnection
+            con.connectTimeout=20000;con.readTimeout=30000;con.instanceFollowRedirects=true;con.setRequestProperty("User-Agent","Mozilla/5.0 OUDI-TV")
+            val body=con.inputStream.bufferedReader().use{it.readText()};con.disconnect()
+            val parsed=parseM3u(body)
+            runOnUiThread{channels=parsed;if(screen=="channels")showChannels();Toast.makeText(this,"تم تحميل "+parsed.size+" قناة",Toast.LENGTH_SHORT).show()}
+        }catch(_:Exception){runOnUiThread{Toast.makeText(this,"تعذر تحميل قائمة القنوات",Toast.LENGTH_LONG).show()}}}
     }
-
-    private fun parseM3u(body: String): List<Channel> {
-        val out = mutableListOf<Channel>()
-        var name = "قناة"; var group = ""; var logo = ""
-        body.lineSequence().map { it.trim() }.forEach { line ->
-            if (line.startsWith("#EXTINF", true)) {
-                name = line.substringAfterLast(',', "قناة").trim().ifBlank { "قناة" }
-                group = Regex("group-title=\"([^\"]*)\"").find(line)?.groupValues?.get(1) ?: ""
-                logo = Regex("tvg-logo=\"([^\"]*)\"").find(line)?.groupValues?.get(1) ?: ""
-            } else if (line.startsWith("http://") || line.startsWith("https://")) {
-                out.add(Channel(name, line, group, logo))
-                name = "قناة"; group = ""; logo = ""
-            }
+    private fun parseM3u(body:String):List<Channel>{
+        val out=mutableListOf<Channel>();var name="قناة";var group="";var logo=""
+        body.lineSequence().map{it.trim()}.forEach{line->
+            if(line.startsWith("#EXTINF",true)){
+                name=line.substringAfterLast(',',"قناة").trim().ifBlank{"قناة"}
+                group=Regex("group-title=\"([^\"]*)\"").find(line)?.groupValues?.get(1)?:""
+                logo=Regex("tvg-logo=\"([^\"]*)\"").find(line)?.groupValues?.get(1)?:""
+            }else if(line.startsWith("http://")||line.startsWith("https://")){out.add(Channel(name,line,group,logo));name="قناة";group="";logo=""}
         }
         return out
     }
-
-    private fun play(channel: Channel) {
-        try {
-            if (player == null) {
-                player = ExoPlayer.Builder(this).build()
-                playerView.player = player
-                player?.addListener(object : Player.Listener {
-                    override fun onPlayerError(error: PlaybackException) {
-                        status.text = "تعذر تشغيل البث — قد يكون متوقفًا أو محجوبًا جغرافيًا"
-                    }
-                })
-            }
-            playerView.visibility = View.VISIBLE
-            playerView.player = player
-            player?.setMediaItem(MediaItem.fromUri(channel.url))
-            player?.prepare(); player?.play()
-            status.text = "يعمل الآن: " + channel.name
-        } catch (_: Exception) {
-            status.text = "تعذر تشغيل القناة"
-        }
+    private fun play(ch:Channel){
+        try{
+            if(player==null){player=ExoPlayer.Builder(this).build();player?.addListener(object:Player.Listener{
+                override fun onPlayerError(error:PlaybackException){Toast.makeText(this@MainActivity,"تعذر تشغيل البث؛ قد يكون متوقفًا أو محجوبًا جغرافيًا",Toast.LENGTH_LONG).show()}
+            })}
+            if(screen!="channels"){section="رياضة";showChannels()}
+            val pv=playerView?:PlayerView(this).also{it.useController=true;it.setBackgroundColor(Color.BLACK);playerView=it}
+            (pv.parent as? ViewGroup)?.removeView(pv);root.addView(pv,LinearLayout.LayoutParams(-1,205).apply{topMargin=8})
+            pv.player=player;player?.setMediaItem(MediaItem.fromUri(ch.url));player?.prepare();player?.play()
+        }catch(_:Exception){Toast.makeText(this,"تعذر تشغيل القناة",Toast.LENGTH_SHORT).show()}
     }
-
-    override fun onStop() {
-        super.onStop()
-        player?.release(); player = null
-        if (::playerView.isInitialized) playerView.player = null
-    }
+    @Deprecated("Deprecated in Android")
+    override fun onBackPressed(){when(screen){"channels"->showSections();"sections","matches"->showHome();else->super.onBackPressed()}}
+    override fun onStop(){super.onStop();player?.release();player=null;playerView?.player=null}
 }
