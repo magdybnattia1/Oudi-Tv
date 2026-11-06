@@ -55,9 +55,10 @@ class MainActivity : Activity() {
         root = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(18),dp(14),dp(18),dp(10)); setBackgroundColor(bg) }
         setContentView(root)
         showHome()
-        val default = ""
-        playlistAddress = getPreferences(MODE_PRIVATE).getString("playlist",default) ?: default
-        if (playlistAddress.isNotBlank()) loadPlaylist(playlistAddress)
+        // Replace any previously saved playlist with the user's selected IPTV-org master list.
+        playlistAddress = "https://iptv-org.github.io/iptv/index.m3u"
+        getPreferences(MODE_PRIVATE).edit().putString("playlist", playlistAddress).apply()
+        loadPlaylist(playlistAddress)
     }
 
     private fun dp(v:Int):Int = (v * resources.displayMetrics.density).toInt()
