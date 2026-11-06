@@ -47,7 +47,7 @@ class MainActivity : Activity() {
         window.statusBarColor = bg
         window.navigationBarColor = bg
         window.decorView.layoutDirection = View.LAYOUT_DIRECTION_RTL
-        root = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(16,12,16,8); setBackgroundColor(bg) }
+        root = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(18),dp(14),dp(18),dp(10)); setBackgroundColor(bg) }
         setContentView(root)
         showHome()
         val default = "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8"
@@ -55,7 +55,7 @@ class MainActivity : Activity() {
         loadPlaylist(playlistAddress)
     }
 
-    private fun shape(c:Int,r:Float=17f) = GradientDrawable().apply { setColor(c); cornerRadius=r }
+    private fun dp(v:Int):Int = (v * resources.displayMetrics.density).toInt()\n    private fun shape(c:Int,r:Float=17f) = GradientDrawable().apply { setColor(c); cornerRadius=r }
     private fun txt(s:String,n:Float,c:Int,b:Boolean=false) = TextView(this).apply {
         text=s; textSize=n; setTextColor(c); if(b) typeface=Typeface.DEFAULT_BOLD
     }
@@ -69,7 +69,7 @@ class MainActivity : Activity() {
         brand.addView(txt("OUDI  TV",25f,gold,true)); brand.addView(txt(sub,11f,muted))
         row.addView(brand)
         row.addView(btn(if(back) "رجوع ‹" else "⚙") { if(back) showHome() else sourceDialog() },LinearLayout.LayoutParams(-2,42))
-        root.addView(row,LinearLayout.LayoutParams(-1,58).apply { bottomMargin=16 })
+        root.addView(row,LinearLayout.LayoutParams(-1,dp(66)).apply { bottomMargin=dp(22) })
     }
     private fun title(s:String,sub:String="") {
         root.addView(txt(s,21f,Color.WHITE,true),LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=5 })
@@ -78,25 +78,67 @@ class MainActivity : Activity() {
     private fun showHome() {
         screen="home"; root.removeAllViews(); header("منصة المشاهدة والترفيه")
         root.addView(View(this),LinearLayout.LayoutParams(1,0,1f))
-        root.addView(tile("▶","بث مباشر","قنوات رياضية وترفيهية وأخبار"){showSections()},LinearLayout.LayoutParams(-1,150).apply{bottomMargin=16})
-        root.addView(tile("⚽","مباريات اليوم","المواعيد والنتائج وحالة المباريات"){showMatches()},LinearLayout.LayoutParams(-1,150))
-        root.addView(txt("أسود × ذهبي  •  OUDI TV",12f,muted).apply{gravity=Gravity.CENTER},LinearLayout.LayoutParams(-1,55))
+        root.addView(tile("▶","بث مباشر","قنوات رياضية وترفيهية وأخبار"){showSections()},LinearLayout.LayoutParams(-1,dp(172)).apply{bottomMargin=dp(18)})
+        root.addView(tile("⚽","مباريات اليوم","المواعيد والنتائج وحالة المباريات"){showMatches()},LinearLayout.LayoutParams(-1,dp(172)))
+        root.addView(txt("أسود × ذهبي  •  OUDI TV",12f,muted).apply{gravity=Gravity.CENTER},LinearLayout.LayoutParams(-1,dp(60)))
         root.addView(View(this),LinearLayout.LayoutParams(1,0,1f))
     }
     private fun tile(icon:String,name:String,desc:String,action:()->Unit)=LinearLayout(this).apply{
-        orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER; background=shape(panel,22f); setPadding(16,12,16,12)
+        orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER; background=shape(panel,24f); setPadding(dp(18),dp(16),dp(18),dp(16))
         addView(txt(icon,32f,gold,true).apply{gravity=Gravity.CENTER})
         addView(txt(name,22f,Color.WHITE,true).apply{gravity=Gravity.CENTER;setPadding(0,5,0,4)})
         addView(txt(desc,12f,muted).apply{gravity=Gravity.CENTER})
         setOnClickListener{action()}
     }
     private fun showSections() {
-        screen="sections"; root.removeAllViews(); header("البث المباشر",true); title("الأقسام","اختار القسم لعرض القنوات المتاحة")
-        val scroll=ScrollView(this); val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}
-        sections.forEach { s -> box.addView(txt(s,20f,Color.WHITE,true).apply{
-            gravity=Gravity.CENTER; background=shape(panel,17f); setOnClickListener{section=s;showChannels()}
-        },LinearLayout.LayoutParams(-1,66).apply{bottomMargin=10}) }
-        scroll.addView(box); root.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
+        screen="sections"
+        root.removeAllViews()
+        header("البث المباشر",true)
+        title("اختر القسم","تصفح القنوات حسب التصنيف")
+        val scroll=ScrollView(this).apply { clipToPadding=false; isFillViewport=false }
+        val box=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(0,dp(6),0,dp(18)) }
+        val entries=listOf(
+            Triple("⚽","رياضة","قنوات المباريات والرياضة"),
+            Triple("🎬","أفلام","أفلام عربية وأجنبية"),
+            Triple("📺","مسلسلات","دراما ومسلسلات متنوعة"),
+            Triple("◉","أخبار","أخبار محلية وعالمية"),
+            Triple("★","أطفال","قنوات الأطفال والكرتون"),
+            Triple("♫","منوعات","ترفيه وموسيقى وبرامج")
+        )
+        entries.forEachIndexed { index, item ->
+            val card=LinearLayout(this).apply {
+                orientation=LinearLayout.HORIZONTAL
+                gravity=Gravity.CENTER_VERTICAL
+                background=shape(Color.rgb(25,27,34),20f)
+                setPadding(dp(18),dp(15),dp(18),dp(15))
+                isClickable=true
+                isFocusable=true
+                setOnClickListener { section=item.second; showChannels() }
+            }
+            val icon=TextView(this).apply {
+                text=item.first; textSize=25f; gravity=Gravity.CENTER
+                setTextColor(gold); background=shape(Color.rgb(43,38,27),16f)
+            }
+            card.addView(icon,LinearLayout.LayoutParams(dp(58),dp(58)))
+            val labels=LinearLayout(this).apply {
+                orientation=LinearLayout.VERTICAL
+                gravity=Gravity.CENTER_VERTICAL
+                layoutParams=LinearLayout.LayoutParams(0,-2,1f).apply {
+                    marginStart=dp(16); marginEnd=dp(8)
+                }
+            }
+            labels.addView(txt(item.second,18f,Color.WHITE,true))
+            labels.addView(txt(item.third,12f,muted).apply {
+                setPadding(0,dp(5),0,0)
+            })
+            card.addView(labels)
+            card.addView(txt("‹",27f,gold,true))
+            box.addView(card,LinearLayout.LayoutParams(-1,dp(92)).apply {
+                bottomMargin=dp(14)
+            })
+        }
+        scroll.addView(box)
+        root.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
     }
     private fun category(c:Channel,s:String):Boolean {
         val v=(c.group+" "+c.name).lowercase(Locale.ROOT)
