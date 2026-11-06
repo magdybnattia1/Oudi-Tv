@@ -42,6 +42,8 @@ class MainActivity : Activity() {
     private var channels = officialBeinChannels
     private var matches = emptyList<MatchInfo>()
     private var playlistAddress = ""
+    private var playlistLoading = true
+    private var playlistError = false
     private var section = ""
     private var screen = "home"
     private val sections = listOf("رياضة","أفلام","مسلسلات","أخبار","أطفال","منوعات")
@@ -150,12 +152,12 @@ class MainActivity : Activity() {
     private fun category(c:Channel,s:String):Boolean {
         val v=(c.group+" "+c.name).lowercase(Locale.ROOT)
         val keys=when(s){
-            "رياضة"->listOf("sport","bein","football","soccer","رياض","كرة")
-            "أفلام"->listOf("movie","film","cinema","فيلم")
-            "مسلسلات"->listOf("series","drama","مسلسل","دراما")
+            "رياضة"->listOf("sport","bein","football","soccer","رياض","كرة","cricket")
+            "أفلام"->listOf("movie","film","cinema","فيلم","movies")
+            "مسلسلات"->listOf("series","drama","مسلسل","دراما","soap")
             "أخبار"->listOf("news","أخبار","خبر")
-            "أطفال"->listOf("kids","children","cartoon","أطفال","كرتون")
-            else->listOf("entertain","music","lifestyle","منوع")
+            "أطفال"->listOf("kids","children","cartoon","أطفال","كرتون","animation")
+            else->listOf("entertain","music","lifestyle","documentary","culture","منوع")
         }
         return keys.any{v.contains(it)}
     }
