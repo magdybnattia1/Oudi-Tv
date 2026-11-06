@@ -57,9 +57,10 @@ class MainActivity : Activity() {
         root = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(18),dp(14),dp(18),dp(10)); setBackgroundColor(bg) }
         setContentView(root)
         showHome()
-        // Replace any previously saved playlist with the user's selected IPTV-org master list.
-        playlistAddress = "https://iptv-org.github.io/iptv/index.m3u"
-        getPreferences(MODE_PRIVATE).edit().putString("playlist", playlistAddress).apply()
+        // Keep the user's chosen source; use IPTV-org as the first-run default.
+        playlistAddress = getPreferences(MODE_PRIVATE).getString(
+            "playlist", "https://iptv-org.github.io/iptv/index.m3u"
+        ) ?: "https://iptv-org.github.io/iptv/index.m3u"
         loadPlaylist(playlistAddress)
     }
 
