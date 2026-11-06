@@ -11,6 +11,9 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.*
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
+import java.net.URLEncoder
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -54,9 +57,17 @@ class MainActivity : Activity() {
         setContentView(root)
         showHome()
         // Keep the user's chosen source; use IPTV-org as the first-run default.
-        playlistAddress = getPreferences(MODE_PRIVATE).getString(
-            "playlist", "https://iptv-org.github.io/iptv/index.category.m3u|https://www.m3u.cl/lista/total.m3u"
-        ) ?: "https://iptv-org.github.io/iptv/index.category.m3u|https://www.m3u.cl/lista/total.m3u"
+        val secure = secureIptvPrefs()
+        val host = secure.getString("host", "") ?: ""
+        val user = secure.getString("username", "") ?: ""
+        val pass = secure.getString("password", "") ?: ""
+        playlistAddress = if (host.isNotBlank() && user.isNotBlank() && pass.isNotBlank()) {
+            xtreamM3uUrl(host, user, pass)
+        } else {
+            getPreferences(MODE_PRIVATE).getString("playlist",
+                "https://iptv-org.github.io/iptv/index.category.m3u|https://www.m3u.cl/lista/total.m3u")
+                ?: "https://iptv-org.github.io/iptv/index.category.m3u|https://www.m3u.cl/lista/total.m3u"
+        }
         loadPlaylist(playlistAddress)
     }
 
@@ -532,15 +543,54 @@ class MainActivity : Activity() {
             runOnUiThread{matches=found.values.toList();done?.invoke()}
         }
     }
-    private fun sourceDialog(){
-        val input=EditText(this).apply{setText(playlistAddress);setTextColor(Color.BLACK);hint="https://..."}
-        AlertDialog.Builder(this).setTitle("مصدر القنوات").setMessage("أدخل رابط قائمة قنوات بصيغة M3U.").setView(input)
-            .setNegativeButton("إلغاء",null).setPositiveButton("تحميل"){_,_->
-                val v=input.text.toString().trim()
-                if(v.startsWith("http")){playlistAddress=v;getPreferences(MODE_PRIVATE).edit().putString("playlist",v).apply();loadPlaylist(v)}
-                else Toast.makeText(this,"الرابط غير صحيح",Toast.LENGTH_SHORT).show()
+    private fun secureIptvPrefs(): android.content.SharedPreferences {
+        val key = MasterKey.Builder(this).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
+        return EncryptedSharedPreferences.create(this, "oudi_secure_iptv", key,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM)
+    }
+
+    private fun xtreamM3uUrl(hostValue: String, username: String, password: String): String {
+        val host = hostValue.trim().trimEnd('/')
+        val u = URLEncoder.encode(username, "UTF-8")
+        val p = URLEncoder.encode(password, "UTF-8")
+        return "$host/get.php?username=$u&password=$p&type=m3u_plus&output=ts"
+    }
+
+    private fun sourceDialog() {
+        val secure = secureIptvPrefs()
+        val host = EditText(this).apply { hint = "رابط السيرفر"; setSingleLine(true); setTextColor(Color.BLACK); setText(secure.getString("host", "")) }
+        val username = EditText(this).apply { hint = "اسم المستخدم"; setSingleLine(true); setTextColor(Color.BLACK); setText(secure.getString("username", "")) }
+        val password = EditText(this).apply { hint = "كلمة المرور"; setSingleLine(true); setTextColor(Color.BLACK); inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD; setText(secure.getString("password", "")) }
+        val direct = EditText(this).apply { hint = "أو رابط M3U مباشر"; setSingleLine(false); setTextColor(Color.BLACK); setText(if (host.text.isNullOrBlank()) playlistAddress else "") }
+        val form = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(8), dp(16), dp(4))
+            addView(txt("XTREAM IPTV", 13f, gold, true)); addView(host); addView(username); addView(password)
+            addView(txt("أو استخدم رابط M3U", 12f, muted, true)); addView(direct)
+        }
+        AlertDialog.Builder(this).setTitle("إعداد مصدر القنوات")
+            .setMessage("تُحفظ بيانات XTREAM مشفّرة على الجهاز ولا تُرفع إلى GitHub.")
+            .setView(form).setNegativeButton("إلغاء", null)
+            .setNeutralButton("مسح بيانات الدخول") { _, _ -> secure.edit().clear().apply() }
+            .setPositiveButton("حفظ وتحميل") { _, _ ->
+                val h = host.text.toString().trim()
+                val u = username.text.toString().trim()
+                val p = password.text.toString()
+                val m = direct.text.toString().trim()
+                if (h.startsWith("http") && u.isNotBlank() && p.isNotBlank()) {
+                    secure.edit().putString("host", h).putString("username", u).putString("password", p).apply()
+                    playlistAddress = xtreamM3uUrl(h, u, p)
+                    loadPlaylist(playlistAddress)
+                } else if (m.startsWith("http")) {
+                    secure.edit().clear().apply()
+                    playlistAddress = m
+                    getPreferences(MODE_PRIVATE).edit().putString("playlist", m).apply()
+                    loadPlaylist(m)
+                } else Toast.makeText(this, "أدخل بيانات XTREAM كاملة أو رابط M3U صحيح", Toast.LENGTH_LONG).show()
             }.show()
     }
+
     private fun loadPlaylist(address:String){
         thread{
             val merged=LinkedHashMap<String,Channel>()
