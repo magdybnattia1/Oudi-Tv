@@ -50,7 +50,7 @@ class MainActivity : Activity() {
         root = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(18),dp(14),dp(18),dp(10)); setBackgroundColor(bg) }
         setContentView(root)
         showHome()
-        val default = "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8|https://iptv-org.github.io/iptv/categories/sports.m3u|https://iptv-org.github.io/iptv/languages/ara.m3u"
+        val default = "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8|https://iptv-org.github.io/iptv/countries/eg.m3u|https://iptv-org.github.io/iptv/languages/ara.m3u|https://iptv-org.github.io/iptv/categories/sports.m3u|https://iptv-org.github.io/iptv/categories/movies.m3u|https://iptv-org.github.io/iptv/categories/series.m3u|https://iptv-org.github.io/iptv/categories/news.m3u|https://iptv-org.github.io/iptv/categories/kids.m3u|https://iptv-org.github.io/iptv/categories/music.m3u|https://iptv-org.github.io/iptv/categories/entertainment.m3u"
         playlistAddress = getPreferences(MODE_PRIVATE).getString("playlist",default) ?: default
         loadPlaylist(playlistAddress)
     }
