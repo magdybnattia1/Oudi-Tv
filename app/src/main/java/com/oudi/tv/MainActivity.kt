@@ -55,7 +55,8 @@ class MainActivity : Activity() {
         loadPlaylist(playlistAddress)
     }
 
-    private fun dp(v:Int):Int = (v * resources.displayMetrics.density).toInt()\n    private fun shape(c:Int,r:Float=17f) = GradientDrawable().apply { setColor(c); cornerRadius=r }
+    private fun dp(v:Int):Int = (v * resources.displayMetrics.density).toInt()
+    private fun shape(c:Int,r:Float=17f) = GradientDrawable().apply { setColor(c); cornerRadius=r }
     private fun txt(s:String,n:Float,c:Int,b:Boolean=false) = TextView(this).apply {
         text=s; textSize=n; setTextColor(c); if(b) typeface=Typeface.DEFAULT_BOLD
     }
