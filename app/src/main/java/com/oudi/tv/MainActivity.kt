@@ -93,19 +93,73 @@ class MainActivity : Activity() {
         if(sub.isNotBlank()) root.addView(txt(sub,12f,muted),LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=14 })
     }
     private fun showHome() {
-        screen="home"; root.removeAllViews(); header("منصة المشاهدة والترفيه")
-        root.addView(View(this),LinearLayout.LayoutParams(1,0,1f))
-        root.addView(tile("▶","بث مباشر","قنوات رياضية وترفيهية وأخبار"){showSections()},LinearLayout.LayoutParams(-1,dp(172)).apply{bottomMargin=dp(18)})
-        root.addView(tile("⚽","مباريات اليوم","المواعيد والنتائج وحالة المباريات"){showMatches()},LinearLayout.LayoutParams(-1,dp(172)))
-        root.addView(txt("أسود × ذهبي  •  OUDI TV",12f,muted).apply{gravity=Gravity.CENTER},LinearLayout.LayoutParams(-1,dp(60)))
-        root.addView(View(this),LinearLayout.LayoutParams(1,0,1f))
+        screen="home"
+        root.removeAllViews()
+        header("منصة المشاهدة والترفيه")
+        val hero=LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL
+            background=GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                intArrayOf(Color.rgb(52,42,22),Color.rgb(25,26,31))).apply {
+                cornerRadius=dp(22).toFloat()
+                setStroke(dp(1),Color.rgb(105,83,39))
+            }
+            setPadding(dp(20),dp(20),dp(20),dp(20))
+        }
+        hero.addView(txt("أهلاً بك في OUDI TV",13f,muted))
+        hero.addView(txt("ترفيهك المفضل\nفي مكان واحد",25f,Color.WHITE,true).apply {
+            setPadding(0,dp(8),0,dp(8))
+        })
+        hero.addView(txt("بث مباشر  •  رياضة  •  مباريات",12f,gold,true))
+        root.addView(hero,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=dp(22) })
+        root.addView(txt("استكشف التطبيق",18f,Color.WHITE,true),LinearLayout.LayoutParams(-1,-2).apply {
+            bottomMargin=dp(12)
+        })
+        root.addView(tile("▶","البث المباشر","قنوات رياضية وترفيهية وأخبار"){showSections()},
+            LinearLayout.LayoutParams(-1,dp(112)).apply { bottomMargin=dp(12) })
+        root.addView(tile("⚽","مباريات اليوم","المواعيد والنتائج وحالة المباريات"){showMatches()},
+            LinearLayout.LayoutParams(-1,dp(112)).apply { bottomMargin=dp(18) })
+        val status=when {
+            playlistLoading -> "جاري تحميل قائمة القنوات..."
+            playlistError -> "تعذر تحميل القنوات — افتح الإعدادات لتغيير المصدر"
+            else -> "القنوات جاهزة • " + channels.size + " قناة"
+        }
+        root.addView(txt(status,11f,if(playlistError) Color.rgb(230,110,100) else muted).apply {
+            gravity=Gravity.CENTER
+            setPadding(dp(4),dp(8),dp(4),dp(8))
+        })
+        root.addView(txt("أسود × ذهبي   •   OUDI TV",11f,muted).apply {
+            gravity=Gravity.CENTER
+            setPadding(0,dp(12),0,0)
+        })
     }
-    private fun tile(icon:String,name:String,desc:String,action:()->Unit)=LinearLayout(this).apply{
-        orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER; background=shape(panel,24f); setPadding(dp(18),dp(16),dp(18),dp(16))
-        addView(txt(icon,32f,gold,true).apply{gravity=Gravity.CENTER})
-        addView(txt(name,22f,Color.WHITE,true).apply{gravity=Gravity.CENTER;setPadding(0,5,0,4)})
-        addView(txt(desc,12f,muted).apply{gravity=Gravity.CENTER})
-        setOnClickListener{action()}
+    private fun tile(icon:String,name:String,desc:String,action:()->Unit)=LinearLayout(this).apply {
+        orientation=LinearLayout.HORIZONTAL
+        gravity=Gravity.CENTER_VERTICAL
+        background=GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+            intArrayOf(Color.rgb(39,35,27),Color.rgb(24,26,32))).apply {
+            cornerRadius=dp(19).toFloat()
+            setStroke(dp(1),Color.rgb(72,60,38))
+        }
+        setPadding(dp(16),dp(14),dp(16),dp(14))
+        val iconBox=TextView(this).apply {
+            text=icon
+            textSize=27f
+            gravity=Gravity.CENTER
+            setTextColor(gold)
+            background=shape(Color.rgb(55,46,29),15f)
+        }
+        addView(iconBox,LinearLayout.LayoutParams(dp(58),dp(58)).apply { marginEnd=dp(14) })
+        val labels=LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL
+            layoutParams=LinearLayout.LayoutParams(0,-2,1f)
+        }
+        labels.addView(txt(name,18f,Color.WHITE,true))
+        labels.addView(txt(desc,11f,muted).apply { setPadding(0,dp(5),0,dp(6)) })
+        labels.addView(txt("اضغط للدخول  ‹",11f,gold,true))
+        addView(labels)
+        isClickable=true
+        isFocusable=true
+        setOnClickListener { action() }
     }
     private fun showSections() {
         screen="sections"
