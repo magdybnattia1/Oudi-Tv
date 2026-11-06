@@ -153,32 +153,139 @@ class MainActivity : Activity() {
         }
         return keys.any{v.contains(it)}
     }
+    private var fullscreenPlayer = false
+
     private fun showChannels() {
-        screen="channels"; root.removeAllViews(); header("البث المباشر  /  "+section,true); title(section,"القنوات الموجودة في قائمة البث")
-        val search=EditText(this).apply{hint="ابحث عن قناة...";textSize=14f;setHintTextColor(muted);setTextColor(Color.WHITE);setSingleLine(true);setPadding(14,0,14,0);background=shape(panel,13f)}
-        root.addView(search,LinearLayout.LayoutParams(-1,46).apply{bottomMargin=12})
-        val scroll=ScrollView(this); val list=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL};scroll.addView(list)
-        root.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
-        fun render(q:String=""){
-            list.removeAllViews()
-            val found=channels.filter{category(it,section)&&(it.name.contains(q,true)||it.group.contains(q,true))}
-            found.take(300).forEach{ch->
-                val row=LinearLayout(this).apply{gravity=Gravity.CENTER_VERTICAL;background=shape(panel,14f);setPadding(12,10,12,10);setOnClickListener{play(ch)}}
-                row.addView(txt("▶",20f,gold,true),LinearLayout.LayoutParams(42,42))
-                val info=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;layoutParams=LinearLayout.LayoutParams(0,-2,1f)}
-                info.addView(txt(ch.name,14f,Color.WHITE,true));info.addView(txt(ch.group.ifBlank{"بث مباشر"},11f,muted))
-                row.addView(info);row.addView(txt("مشاهدة",11f,gold))
-                list.addView(row,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=8})
-            }
-            if(found.isEmpty()) list.addView(txt(if(channels.isEmpty())"جاري تحميل القنوات..." else "لا توجد قنوات مطابقة في القائمة الحالية",13f,muted).apply{gravity=Gravity.CENTER;setPadding(8,30,8,30)})
+        screen = "channels"
+        root.removeAllViews()
+
+        if (!fullscreenPlayer) {
+            header("البث المباشر  /  " + section, true)
+            title(section, "اختر قناة للمشاهدة")
         }
-        search.addTextChangedListener(object:android.text.TextWatcher{
-            override fun beforeTextChanged(s:CharSequence?,st:Int,c:Int,a:Int){}
-            override fun onTextChanged(s:CharSequence?,st:Int,b:Int,c:Int){render(s?.toString()?: "")}
-            override fun afterTextChanged(s:android.text.Editable?){}
+
+        val landscape = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        val search = EditText(this).apply {
+            hint = "ابحث عن قناة..."
+            textSize = 14f
+            setHintTextColor(muted)
+            setTextColor(Color.WHITE)
+            setSingleLine(true)
+            setPadding(dp(14), 0, dp(14), 0)
+            background = shape(panel, 13f)
+        }
+
+        val scroll = ScrollView(this).apply { clipToPadding = false }
+        val list = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(8), dp(8), dp(8), dp(12))
+        }
+        scroll.addView(list)
+
+        fun render(q: String = "") {
+            list.removeAllViews()
+            val found = channels.filter {
+                category(it, section) && (it.name.contains(q, true) || it.group.contains(q, true))
+            }
+            found.take(300).forEachIndexed { index, ch ->
+                val row = LinearLayout(this).apply {
+                    gravity = Gravity.CENTER_VERTICAL
+                    background = shape(if (index == 0) Color.rgb(37, 34, 25) else panel, 14f)
+                    setPadding(dp(12), dp(11), dp(12), dp(11))
+                    isClickable = true
+                    isFocusable = true
+                    setOnClickListener { play(ch) }
+                }
+                val playIcon = TextView(this).apply {
+                    text = "▶"
+                    textSize = 17f
+                    gravity = Gravity.CENTER
+                    setTextColor(gold)
+                    background = shape(Color.rgb(43, 38, 27), 12f)
+                }
+                row.addView(playIcon, LinearLayout.LayoutParams(dp(40), dp(40)).apply { marginEnd = dp(10) })
+                val info = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+                }
+                info.addView(txt(ch.name, 13f, Color.WHITE, true))
+                info.addView(txt(ch.group.ifBlank { "بث مباشر" }, 10f, muted))
+                row.addView(info)
+                row.addView(txt("مشاهدة", 10f, gold, true))
+                list.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
+            }
+            if (found.isEmpty()) {
+                list.addView(txt(
+                    if (channels.isEmpty()) "جاري تحميل القنوات..." else "لا توجد قنوات مطابقة في هذا القسم",
+                    13f, muted
+                ).apply { gravity = Gravity.CENTER; setPadding(dp(8), dp(30), dp(8), dp(30)) })
+            }
+        }
+
+        search.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
+            override fun onTextChanged(s: CharSequence?, st: Int, before: Int, count: Int) {
+                render(s?.toString() ?: "")
+            }
+            override fun afterTextChanged(s: android.text.Editable?) {}
         })
         render()
-        playerView?.let{pv->(pv.parent as? ViewGroup)?.removeView(pv);root.addView(pv,LinearLayout.LayoutParams(-1,205).apply{topMargin=8})}
+
+        val pv = playerView ?: PlayerView(this).also {
+            it.useController = true
+            it.setBackgroundColor(Color.BLACK)
+            playerView = it
+        }
+        (pv.parent as? ViewGroup)?.removeView(pv)
+        pv.player = player
+
+        val videoFrame = FrameLayout(this).apply {
+            setBackgroundColor(Color.BLACK)
+            addView(pv, FrameLayout.LayoutParams(-1, -1))
+        }
+        val fullButton = TextView(this).apply {
+            text = if (fullscreenPlayer) "تصغير  ⤢" else "ملء الشاشة  ⛶"
+            textSize = 11f
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            background = GradientDrawable().apply {
+                setColor(0xCC17191F.toInt())
+                cornerRadius = dp(10).toFloat()
+                setStroke(dp(1), gold)
+            }
+            setPadding(dp(12), dp(9), dp(12), dp(9))
+            setOnClickListener {
+                fullscreenPlayer = !fullscreenPlayer
+                showChannels()
+            }
+        }
+        videoFrame.addView(fullButton, FrameLayout.LayoutParams(-2, dp(38), Gravity.TOP or Gravity.END).apply {
+            setMargins(0, dp(10), dp(10), 0)
+        })
+
+        if (fullscreenPlayer) {
+            root.addView(videoFrame, LinearLayout.LayoutParams(-1, 0, 1f))
+            return
+        }
+
+        root.addView(search, LinearLayout.LayoutParams(-1, dp(44)).apply { bottomMargin = dp(10) })
+
+        if (landscape) {
+            val content = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.FILL
+            }
+            content.addView(videoFrame, LinearLayout.LayoutParams(0, -1, 2.2f).apply {
+                marginEnd = dp(10)
+            })
+            content.addView(scroll, LinearLayout.LayoutParams(0, -1, 1f))
+            root.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
+        } else {
+            root.addView(videoFrame, LinearLayout.LayoutParams(-1, dp(205)).apply {
+                bottomMargin = dp(10)
+            })
+            root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        }
     }
     private fun showMatches() {
         screen="matches";root.removeAllViews();header("مباريات اليوم",true)
@@ -274,16 +381,25 @@ class MainActivity : Activity() {
         }
         return out
     }
-    private fun play(ch:Channel){
-        try{
-            if(player==null){player=ExoPlayer.Builder(this).build();player?.addListener(object:Player.Listener{
-                override fun onPlayerError(error:PlaybackException){Toast.makeText(this@MainActivity,"تعذر تشغيل البث؛ قد يكون متوقفًا أو محجوبًا جغرافيًا",Toast.LENGTH_LONG).show()}
-            })}
-            if(screen!="channels"){section="رياضة";showChannels()}
-            val pv=playerView?:PlayerView(this).also{it.useController=true;it.setBackgroundColor(Color.BLACK);playerView=it}
-            (pv.parent as? ViewGroup)?.removeView(pv);root.addView(pv,LinearLayout.LayoutParams(-1,205).apply{topMargin=8})
-            pv.player=player;player?.setMediaItem(MediaItem.fromUri(ch.url));player?.prepare();player?.play()
-        }catch(_:Exception){Toast.makeText(this,"تعذر تشغيل القناة",Toast.LENGTH_SHORT).show()}
+    private fun play(ch: Channel) {
+        try {
+            if (player == null) {
+                player = ExoPlayer.Builder(this).build()
+                player?.addListener(object : Player.Listener {
+                    override fun onPlayerError(error: PlaybackException) {
+                        Toast.makeText(this@MainActivity, "تعذر تشغيل البث؛ قد يكون متوقفًا أو محجوبًا جغرافيًا", Toast.LENGTH_LONG).show()
+                    }
+                })
+            }
+            fullscreenPlayer = false
+            showChannels()
+            playerView?.player = player
+            player?.setMediaItem(MediaItem.fromUri(ch.url))
+            player?.prepare()
+            player?.play()
+        } catch (_: Exception) {
+            Toast.makeText(this, "تعذر تشغيل القناة", Toast.LENGTH_SHORT).show()
+        }
     }
     @Deprecated("Deprecated in Android")
     override fun onBackPressed(){when(screen){"channels"->showSections();"sections","matches"->showHome();else->super.onBackPressed()}}
