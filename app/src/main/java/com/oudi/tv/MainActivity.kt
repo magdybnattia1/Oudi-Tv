@@ -35,11 +35,7 @@ class MainActivity : Activity() {
     private lateinit var root: LinearLayout
     private var player: ExoPlayer? = null
     private var playerView: PlayerView? = null
-    private val officialBeinChannels = listOf(
-        Channel("beIN SPORTS — البث الرسمي المجاني", "https://watch.beinsports-apps.com/live-channels", "Sports"),
-        Channel("beIN SPORTS NEWS — البث الرسمي المجاني", "https://watch.beinsports-apps.com/live-channels", "Sports")
-    )
-    private var channels = officialBeinChannels
+    private var channels = emptyList<Channel>()
     private var matches = emptyList<MatchInfo>()
     private var playlistAddress = ""
     private var playlistLoading = true
@@ -59,8 +55,8 @@ class MainActivity : Activity() {
         showHome()
         // Keep the user's chosen source; use IPTV-org as the first-run default.
         playlistAddress = getPreferences(MODE_PRIVATE).getString(
-            "playlist", "https://iptv-org.github.io/iptv/index.m3u"
-        ) ?: "https://iptv-org.github.io/iptv/index.m3u"
+            "playlist", "https://iptv-org.github.io/iptv/index.category.m3u"
+        ) ?: "https://iptv-org.github.io/iptv/index.category.m3u"
         loadPlaylist(playlistAddress)
     }
 
@@ -556,7 +552,7 @@ class MainActivity : Activity() {
                     con.setRequestProperty("User-Agent","Mozilla/5.0 OUDI-TV")
                     val body=con.inputStream.bufferedReader().use{it.readText()}
                     con.disconnect()
-                    parseM3u(body).forEach{ch->merged.putIfAbsent(ch.name.lowercase(Locale.ROOT)+"|"+ch.url,ch)}
+                    parseM3u(body).forEach{ch->merged.putIfAbsent(ch.url.substringBefore("|").lowercase(Locale.ROOT),ch)}
                     successes++
                 }catch(_:Exception){}
             }
@@ -565,7 +561,7 @@ class MainActivity : Activity() {
                 playlistLoading=false
                 playlistError=successes==0 || parsed.isEmpty()
                 if(successes>0 && parsed.isNotEmpty()){
-                    channels=officialBeinChannels + parsed
+                    channels=parsed
                     if(screen=="channels") showChannels()
                     else if(screen=="sections") showSections()
                     else if(screen=="home") showHome()
