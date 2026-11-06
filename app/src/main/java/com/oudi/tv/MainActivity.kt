@@ -255,8 +255,12 @@ class MainActivity : Activity() {
 
         fun render(q: String = "") {
             list.removeAllViews()
-            val found = channels.filter {
-                category(it, section) && (it.name.contains(q, true) || it.group.contains(q, true))
+            val matchingSection = channels.filter { category(it, section) }
+            // Some M3U providers omit group-title or use unexpected category names.
+            // Never leave a section empty: fall back to the available channels.
+            val sourceList = if (matchingSection.isNotEmpty()) matchingSection else channels
+            val found = sourceList.filter {
+                it.name.contains(q, true) || it.group.contains(q, true)
             }
             found.take(300).forEachIndexed { index, ch ->
                 val row = LinearLayout(this).apply {
@@ -359,31 +363,139 @@ class MainActivity : Activity() {
         }
     }
     private fun showMatches() {
-        screen="matches";root.removeAllViews();header("مباريات اليوم",true)
-        val bar=LinearLayout(this).apply{gravity=Gravity.CENTER_VERTICAL}
-        bar.addView(txt("مباريات كرة القدم",20f,Color.WHITE,true),LinearLayout.LayoutParams(0,-2,1f))
-        bar.addView(btn("تحديث ↻"){loadMatches()})
-        root.addView(bar,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=7})
-        root.addView(txt("المصدر: ESPN. قد لا تشمل البيانات كل البطولات المحلية.",11f,muted),LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=12})
-        val scroll=ScrollView(this);val list=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL};scroll.addView(list)
-        root.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
-        fun render(){
+        screen = "matches"
+        root.removeAllViews()
+        header("مركز المباريات", true)
+
+        val today = SimpleDateFormat("EEEE، d MMMM", Locale("ar")).format(Date())
+        val hero = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                intArrayOf(Color.rgb(61, 47, 23), Color.rgb(25, 27, 34))).apply {
+                cornerRadius = dp(20).toFloat()
+                setStroke(dp(1), Color.rgb(112, 87, 39))
+            }
+            setPadding(dp(18), dp(17), dp(18), dp(17))
+        }
+        hero.addView(txt("⚽  LIVE CENTER", 11f, gold, true))
+        hero.addView(txt("مباريات اليوم", 25f, Color.WHITE, true).apply {
+            setPadding(0, dp(7), 0, dp(4))
+        })
+        hero.addView(txt(today + "  •  النتائج والمواعيد", 12f, muted))
+        root.addView(hero, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(16) })
+
+        val summary = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        val count = matches.size
+        summary.addView(txt("جدول المواجهات", 18f, Color.WHITE, true),
+            LinearLayout.LayoutParams(0, -2, 1f))
+        summary.addView(txt("$count مباراة", 11f, gold, true))
+        summary.addView(btn("تحديث ↻") { loadMatches { renderMatches() } },
+            LinearLayout.LayoutParams(-2, dp(40)).apply { marginStart = dp(8) })
+        root.addView(summary, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(10) })
+
+        root.addView(txt("بيانات المباريات من ESPN • التغطية حسب البطولات المتاحة",
+            10f, muted), LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
+
+        val scroll = ScrollView(this).apply { clipToPadding = false }
+        val list = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(2), 0, dp(14))
+        }
+        scroll.addView(list)
+        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+
+        fun render() {
             list.removeAllViews()
-            if(matches.isEmpty())list.addView(txt("جاري تحميل مباريات اليوم أو لا توجد مباريات متاحة حاليًا.",14f,muted).apply{gravity=Gravity.CENTER;setPadding(8,40,8,40)})
-            matches.forEach{m->
-                val card=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;background=shape(panel,16f);setPadding(14,12,14,12);setOnClickListener{matchChannels(m)}}
-                card.addView(txt(m.league,10f,gold))
-                val teams=LinearLayout(this).apply{gravity=Gravity.CENTER_VERTICAL}
-                teams.addView(txt(m.home,13f,Color.WHITE,true),LinearLayout.LayoutParams(0,-2,1f))
-                teams.addView(txt(m.hs+" - "+m.ascore,18f,gold,true))
-                teams.addView(txt(m.away,13f,Color.WHITE,true).apply{gravity=Gravity.END},LinearLayout.LayoutParams(0,-2,1f))
-                card.addView(teams,LinearLayout.LayoutParams(-1,-2).apply{topMargin=12;bottomMargin=9})
-                card.addView(txt(m.state+"  •  "+m.time,11f,muted))
-                card.addView(txt("اضغط لعرض القنوات الرياضية المتاحة  ›",11f,gold).apply{gravity=Gravity.CENTER;setPadding(0,10,0,0)})
-                list.addView(card,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=10})
+            if (matches.isEmpty()) {
+                val empty = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    gravity = Gravity.CENTER
+                    background = shape(panel, 18f)
+                    setPadding(dp(20), dp(28), dp(20), dp(28))
+                }
+                empty.addView(txt("⚽", 34f, gold, true).apply { gravity = Gravity.CENTER })
+                empty.addView(txt("لا توجد مباريات متاحة حاليًا", 16f, Color.WHITE, true).apply {
+                    gravity = Gravity.CENTER
+                    setPadding(0, dp(10), 0, dp(6))
+                })
+                empty.addView(txt("اسحب للتحديث أو جرّب مرة أخرى لاحقًا", 11f, muted).apply {
+                    gravity = Gravity.CENTER
+                })
+                list.addView(empty, LinearLayout.LayoutParams(-1, -2).apply {
+                    topMargin = dp(12)
+                })
+                return
+            }
+            matches.forEach { m ->
+                val card = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    background = shape(panel, 17f)
+                    setPadding(dp(15), dp(13), dp(15), dp(13))
+                    isClickable = true
+                    isFocusable = true
+                    setOnClickListener { matchChannels(m) }
+                }
+                val top = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+                top.addView(txt(m.league, 10f, gold, true),
+                    LinearLayout.LayoutParams(0, -2, 1f))
+                val statusColor = if (m.state.contains("live", true) ||
+                    m.state.contains("مباشر") || m.state.contains("الشوط")) Color.rgb(100, 205, 130) else muted
+                top.addView(txt("●  " + m.state, 10f, statusColor, true))
+                card.addView(top)
+
+                val teams = LinearLayout(this).apply {
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(0, dp(15), 0, dp(13))
+                }
+                val home = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    gravity = Gravity.CENTER
+                    layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+                }
+                home.addView(txt("🏠", 20f, gold).apply { gravity = Gravity.CENTER })
+                home.addView(txt(m.home, 13f, Color.WHITE, true).apply {
+                    gravity = Gravity.CENTER
+                    setPadding(0, dp(5), 0, 0)
+                })
+                val middle = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    gravity = Gravity.CENTER
+                    background = shape(Color.rgb(42, 38, 29), 13f)
+                    setPadding(dp(13), dp(8), dp(13), dp(8))
+                }
+                middle.addView(txt(if (m.hs == "-" && m.ascore == "-") "VS" else m.hs + " - " + m.ascore,
+                    19f, gold, true))
+                middle.addView(txt(if (m.time.isBlank()) "اليوم" else m.time, 10f, muted).apply {
+                    gravity = Gravity.CENTER
+                    setPadding(0, dp(3), 0, 0)
+                })
+                val away = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    gravity = Gravity.CENTER
+                    layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+                }
+                away.addView(txt("🛡", 20f, gold).apply { gravity = Gravity.CENTER })
+                away.addView(txt(m.away, 13f, Color.WHITE, true).apply {
+                    gravity = Gravity.CENTER
+                    setPadding(0, dp(5), 0, 0)
+                })
+                teams.addView(home)
+                teams.addView(middle)
+                teams.addView(away)
+                card.addView(teams)
+                card.addView(View(this).apply { setBackgroundColor(Color.rgb(53, 48, 37)) },
+                    LinearLayout.LayoutParams(-1, dp(1)).apply { bottomMargin = dp(9) })
+                card.addView(txt("اعرض القنوات الرياضية المتاحة  ‹", 11f, gold, true).apply {
+                    gravity = Gravity.CENTER
+                })
+                list.addView(card, LinearLayout.LayoutParams(-1, -2).apply {
+                    bottomMargin = dp(11)
+                })
             }
         }
-        render();loadMatches{render()}
+        fun renderMatches() = render()
+        render()
+        loadMatches { render() }
     }
     private fun matchChannels(m:MatchInfo){
         val sports=channels.filter{category(it,"رياضة")}
@@ -458,7 +570,11 @@ class MainActivity : Activity() {
                     else if(screen=="home") showHome()
                     Toast.makeText(this,"تم تحميل "+parsed.size+" قناة",Toast.LENGTH_LONG).show()
                 }else{
-                    if(screen=="home") showHome() else if(screen=="sections") showSections()
+                    when (screen) {
+                        "home" -> showHome()
+                        "sections" -> showSections()
+                        "channels" -> showChannels()
+                    }
                     Toast.makeText(this,"تعذر تحميل القائمة. تحقق من الاتصال أو غيّر المصدر.",Toast.LENGTH_LONG).show()
                 }
             }
