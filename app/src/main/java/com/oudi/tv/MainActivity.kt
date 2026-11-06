@@ -55,8 +55,8 @@ class MainActivity : Activity() {
         showHome()
         // Keep the user's chosen source; use IPTV-org as the first-run default.
         playlistAddress = getPreferences(MODE_PRIVATE).getString(
-            "playlist", "https://iptv-org.github.io/iptv/index.category.m3u"
-        ) ?: "https://iptv-org.github.io/iptv/index.category.m3u"
+            "playlist", "https://iptv-org.github.io/iptv/index.category.m3u|https://www.m3u.cl/lista/total.m3u"
+        ) ?: "https://iptv-org.github.io/iptv/index.category.m3u|https://www.m3u.cl/lista/total.m3u"
         loadPlaylist(playlistAddress)
     }
 
