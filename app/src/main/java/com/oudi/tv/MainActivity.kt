@@ -142,7 +142,7 @@ class MainActivity : Activity() {
             setStroke(dp(1),Color.rgb(72,60,38))
         }
         setPadding(dp(16),dp(14),dp(16),dp(14))
-        val iconBox=TextView(this).apply {
+        val iconBox=TextView(this@MainActivity).apply {
             text=icon
             textSize=27f
             gravity=Gravity.CENTER
@@ -150,7 +150,7 @@ class MainActivity : Activity() {
             background=shape(Color.rgb(55,46,29),15f)
         }
         addView(iconBox,LinearLayout.LayoutParams(dp(58),dp(58)).apply { marginEnd=dp(14) })
-        val labels=LinearLayout(this).apply {
+        val labels=LinearLayout(this@MainActivity).apply {
             orientation=LinearLayout.VERTICAL
             layoutParams=LinearLayout.LayoutParams(0,-2,1f)
         }
