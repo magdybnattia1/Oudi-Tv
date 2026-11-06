@@ -2,6 +2,7 @@ package com.oudi.tv
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -34,7 +35,11 @@ class MainActivity : Activity() {
     private lateinit var root: LinearLayout
     private var player: ExoPlayer? = null
     private var playerView: PlayerView? = null
-    private var channels = emptyList<Channel>()
+    private val officialBeinChannels = listOf(
+        Channel("beIN SPORTS — البث الرسمي المجاني", "https://watch.beinsports-apps.com/live-channels", "Sports"),
+        Channel("beIN SPORTS NEWS — البث الرسمي المجاني", "https://watch.beinsports-apps.com/live-channels", "Sports")
+    )
+    private var channels = officialBeinChannels
     private var matches = emptyList<MatchInfo>()
     private var playlistAddress = ""
     private var section = ""
@@ -379,7 +384,7 @@ class MainActivity : Activity() {
             val parsed=merged.values.toList()
             runOnUiThread{
                 if(successes>0){
-                    channels=parsed
+                    channels=officialBeinChannels + parsed
                     if(screen=="channels")showChannels()
                     Toast.makeText(this,"تم تحميل "+parsed.size+" قناة من "+successes+" مصادر مجانية",Toast.LENGTH_LONG).show()
                 }else Toast.makeText(this,"تعذر تحميل قوائم القنوات",Toast.LENGTH_LONG).show()
@@ -398,6 +403,14 @@ class MainActivity : Activity() {
         return out
     }
     private fun play(ch: Channel) {
+        if (ch.url.contains("bein.com", true) || ch.url.contains("beinsports-apps.com", true)) {
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(ch.url)))
+            } catch (_: Exception) {
+                Toast.makeText(this, "تعذر فتح صفحة beIN الرسمية", Toast.LENGTH_SHORT).show()
+            }
+            return
+        }
         try {
             if (player == null) {
                 player = ExoPlayer.Builder(this).build()
